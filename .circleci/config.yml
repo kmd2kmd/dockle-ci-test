@@ -1,14 +1,25 @@
-version: 2
-jobs:
-  build:
+version: 2.1
+executors:
+  default:
+    working_directory: ~/workspace
     docker:
       - image: docker:18.09-git
+        environment:
+          DOCKER_CONTENT_TRUST: "1"
+          IMAGE_REPO_NAME: "dockle-ci-test"
+jobs:
+  build:
+    executor:
+      name: default
     steps:
       - checkout
+      - restore_cache:
+          key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile" }}
+          paths: ~/caches/images.tar
       - setup_remote_docker
       - run:
           name: Build image
-          command: docker build -t dockle-ci-test:${CIRCLE_SHA1} .
+          command: docker build -t ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} .
       - run:
           name: Install dockle
           command: |
@@ -24,9 +35,29 @@ jobs:
             mv dockle /usr/local/bin
       - run:
           name: Scan the local image with guard
-          command: dockle --exit-code 1 dockle-ci-test:${CIRCLE_SHA1}
+          command: dockle --exit-code 1 ${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
+      - save_cache:
+          key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile" }}
+          paths: ~/caches/images.tar
+  deploy:
+    executor:
+      name: default
+    steps:
+      - checkout
+      - restore_cache:
+          key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile" }}
+          paths: ~/caches/images.tar
+      - setup_remote_docker
+      - run:
+          name: Set tag
+          command: docker tag ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
+      - run:
+          name: Push image
+          command: docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
 workflows:
-  version: 2
-  release:
+  build-push:
     jobs:
       - build
+      - deploy:
+          requires:
+            - build

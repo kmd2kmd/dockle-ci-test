@@ -1,0 +1,134 @@
+version: 2
+jobs:
+  build:
+    working_directory: ~/workspace
+    docker:
+    - image: docker:18.09-git
+      environment:
+        DOCKER_CONTENT_TRUST: '1'
+        IMAGE_REPO_NAME: dockle-ci-test
+    steps:
+    - checkout
+    - restore_cache:
+        key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile"
+          }}
+        paths: ~/caches/images.tar
+    - setup_remote_docker
+    - run:
+        name: Build image
+        command: docker build -t ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} .
+    - run:
+        name: Install dockle
+        command: |
+          apk add --update curl
+          VERSION=$(
+              curl --silent "https://api.github.com/repos/goodwithtech/dockle/releases/latest" | \
+              grep '"tag_name":' | \
+              sed -E 's/.*"v([^"]+)".*/\1/'
+          )
+
+          wget https://github.com/goodwithtech/dockle/releases/download/v${VERSION}/dockle_${VERSION}_Linux-64bit.tar.gz
+          tar zxvf dockle_${VERSION}_Linux-64bit.tar.gz
+          mv dockle /usr/local/bin
+    - run:
+        name: Scan the local image with guard
+        command: dockle --exit-code 1 ${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
+    - save_cache:
+        key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile"
+          }}
+        paths: ~/caches/images.tar
+  deploy:
+    working_directory: ~/workspace
+    docker:
+    - image: docker:18.09-git
+      environment:
+        DOCKER_CONTENT_TRUST: '1'
+        IMAGE_REPO_NAME: dockle-ci-test
+    steps:
+    - checkout
+    - restore_cache:
+        key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile"}}
+        paths: ~/caches/images.tar
+    - setup_remote_docker
+    - run:
+        name: Login Amazon ECR
+        command: $(aws ecr get-login --no-include-email --region ${AWS_DEFAULT_REGION})
+    - run:
+        name: Set tag
+        command: docker tag ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
+    - run:
+        name: Push image
+        command: docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
+workflows:
+  build-push:
+    jobs:
+    - build
+    - deploy:
+        requires:
+        - build
+  version: 2
+
+# Original config.yml file:
+# version: 2.1
+# executors:
+#   default:
+#     working_directory: ~/workspace
+#     docker:
+#       - image: docker:18.09-git
+#         environment:
+#           DOCKER_CONTENT_TRUST: \"1\"
+#           IMAGE_REPO_NAME: \"dockle-ci-test\"
+# jobs:
+#   build:
+#     executor:
+#       name: default
+#     steps:
+#       - checkout
+#       - restore_cache:
+#           key: docker-{{ checksum \".circleci/config.yml\" }}-{{ checksum \"Dockerfile\" }}
+#           paths: ~/caches/images.tar
+#       - setup_remote_docker
+#       - run:
+#           name: Build image
+#           command: docker build -t ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} .
+#       - run:
+#           name: Install dockle
+#           command: |
+#             apk add --update curl
+#             VERSION=$(
+#                 curl --silent \"https://api.github.com/repos/goodwithtech/dockle/releases/latest\" | \\
+#                 grep '\"tag_name\":' | \\
+#                 sed -E 's/.*\"v([^\"]+)\".*/\\1/'
+#             )
+# 
+#             wget https://github.com/goodwithtech/dockle/releases/download/v${VERSION}/dockle_${VERSION}_Linux-64bit.tar.gz
+#             tar zxvf dockle_${VERSION}_Linux-64bit.tar.gz
+#             mv dockle /usr/local/bin
+#       - run:
+#           name: Scan the local image with guard
+#           command: dockle --exit-code 1 ${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
+#       - save_cache:
+#           key: docker-{{ checksum \".circleci/config.yml\" }}-{{ checksum \"Dockerfile\" }}
+#           paths: ~/caches/images.tar
+#   deploy:
+#     executor:
+#       name: default
+#     steps:
+#       - checkout
+#       - restore_cache:
+#           key: docker-{{ checksum \".circleci/config.yml\" }}-{{ checksum \"Dockerfile\" }}
+#           paths: ~/caches/images.tar
+#       - setup_remote_docker
+#       - run:
+#           name: Set tag
+#           command: docker tag ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
+#       - run:
+#           name: Push image
+#           command: docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
+# workflows:
+#   build-push:
+#     jobs:
+#       - build
+#       - deploy:
+#           requires:
+#             - build
