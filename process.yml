@@ -33,6 +33,9 @@ jobs:
     - run:
         name: Scan the local image with guard
         command: dockle --exit-code 1 ${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
+    - run:
+        name: debug
+        command: docker images
     - save_cache:
         key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile"
           }}
@@ -47,12 +50,13 @@ jobs:
     steps:
     - checkout
     - restore_cache:
-        key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile"}}
+        key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile"
+          }}
         paths: ~/caches/images.tar
     - setup_remote_docker
     - run:
-        name: Login Amazon ECR
-        command: $(aws ecr get-login --no-include-email --region ${AWS_DEFAULT_REGION})
+        name: debug
+        command: docker images
     - run:
         name: Set tag
         command: docker tag ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
@@ -107,6 +111,9 @@ workflows:
 #       - run:
 #           name: Scan the local image with guard
 #           command: dockle --exit-code 1 ${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
+#       - run:
+#           name: debug
+#           command: docker images
 #       - save_cache:
 #           key: docker-{{ checksum \".circleci/config.yml\" }}-{{ checksum \"Dockerfile\" }}
 #           paths: ~/caches/images.tar
@@ -119,6 +126,9 @@ workflows:
 #           key: docker-{{ checksum \".circleci/config.yml\" }}-{{ checksum \"Dockerfile\" }}
 #           paths: ~/caches/images.tar
 #       - setup_remote_docker
+#       - run:
+#           name: debug
+#           command: docker images
 #       - run:
 #           name: Set tag
 #           command: docker tag ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
