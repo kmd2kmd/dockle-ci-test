@@ -18,6 +18,12 @@ jobs:
           key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile" }}
           paths: ~/caches/images.tar
       - run:
+          name: load cache file.
+          command: |
+            if [ -f ~/caches/images.tar ]; then
+              docker load -i ~/caches/images.tar
+            fi
+      - run:
           name: Build image
           command: docker build -t ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} .
       - run:
