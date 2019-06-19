@@ -59,8 +59,8 @@ jobs:
               docker load -i ~/caches/images.tar
             fi
       - run:
-          name: debug
-          command: docker images
+          name: Login Amazon ECR
+          command: $(aws ecr get-login --no-include-email --region ${AWS_DEFAULT_REGION})
       - run:
           name: Set tag
           command: docker tag ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
