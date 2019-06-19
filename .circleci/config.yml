@@ -13,10 +13,10 @@ jobs:
       name: default
     steps:
       - checkout
+      - setup_remote_docker
       - restore_cache:
           key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile" }}
           paths: ~/caches/images.tar
-      - setup_remote_docker
       - run:
           name: Build image
           command: docker build -t ${IMAGE_REPO_NAME}:${CIRCLE_SHA1} .
@@ -42,15 +42,18 @@ jobs:
       - save_cache:
           key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile" }}
           paths: ~/caches/images.tar
+      - persist_to_workspace:
+          root: ~/caches
+          paths:
+            - images.tar
   deploy:
     executor:
       name: default
     steps:
       - checkout
-      - restore_cache:
-          key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile" }}
-          paths: ~/caches/images.tar
       - setup_remote_docker
+      - attach_workspace:
+          at: ~/caches
       - run:
           name: debug
           command: docker images
