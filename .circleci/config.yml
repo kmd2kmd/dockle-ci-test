@@ -37,23 +37,24 @@ jobs:
           name: Scan the local image with guard
           command: dockle --exit-code 1 ${IMAGE_REPO_NAME}:${CIRCLE_SHA1}
       - run:
-          name: debug
-          command: docker images
+          name: docker save
+          command:  mkdir -p ~/caches && docker save $(docker images | awk 'NR>=2 && ! /^<none>/{print $1}') -o ~/caches/images.tar
       - save_cache:
           key: docker-{{ checksum ".circleci/config.yml" }}-{{ checksum "Dockerfile" }}
           paths: ~/caches/images.tar
-      - persist_to_workspace:
-          root: ~/caches
-          paths:
-            - images.tar
+
   deploy:
     executor:
       name: default
     steps:
       - checkout
       - setup_remote_docker
-      - attach_workspace:
-          at: ~/caches
+      - run:
+          name: load cache file.
+          command: |
+            if [ -f ~/caches/images.tar ]; then
+              docker load -i ~/caches/images.tar
+            fi
       - run:
           name: debug
           command: docker images
